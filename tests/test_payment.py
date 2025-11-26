@@ -2,6 +2,7 @@
 import json
 import webbrowser
 from datetime import datetime
+import random
 
 API_URL = "http://localhost:8002"
 WEBHOOK_URL = "https://webhook.site/unique-id"
@@ -11,8 +12,10 @@ def test_create_invoice():
     print("🧪 Тестування AcquireMock Payment Gateway\n")
     print("=" * 50)
 
+    rand_amount = random.randint(100, 1000)
+
     payload = {
-        "amount": 25000,
+        "amount": rand_amount,
         "reference": f"TEST-{datetime.now().strftime('%Y%m%d%H%M%S')}",
         "webhook_url": WEBHOOK_URL,
         "redirect_url": REDIRECT_URL
