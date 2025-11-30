@@ -1,10 +1,10 @@
 ﻿import uuid
 import httpx
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Optional, Dict
 
-from fastapi import FastAPI, HTTPException, Request, Form, BackgroundTasks, Depends, Query, Cookie, Body
+from fastapi import FastAPI, HTTPException, Request, Form, BackgroundTasks, Depends, Query, Cookie, Body, Header
 from fastapi.responses import RedirectResponse, JSONResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
@@ -13,15 +13,25 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from pydantic import BaseModel
 import aiosmtplib
+import asyncio
 
 from models.invoice import CreateInvoiceResponse, CreateInvoiceRequest
-from other.data import db_payments
-from other.miscFunctions import payment_check, validate_otp
+from models.errors import (
+    PaymentError, PaymentNotFoundError, PaymentAlreadyProcessedError,
+    PaymentExpiredError, InsufficientFundsError, InvalidOTPError,
+    CSRFTokenMismatchError, InvalidCardError, SavedCardNotFoundError
+)
+from other.miscFunctions import validate_otp
 from security.crypto import generate_secure_otp, generate_csrf_token, hash_sensitive_data, verify_sensitive_data
 from services.smtp_service import send_otp_email, send_receipt_email
+from services.webhook_service import send_webhook_with_retry, verify_webhook_signature
+from services.background_tasks import start_background_tasks
 from database.chore.session import get_db, engine
-from database.models.main_models import SuccessFulOperation, SavedCard
-from database.functional.main_functions import send_successful_operation, init_db
+from database.models.main_models import SuccessFulOperation, SavedCard, Payment
+from database.functional.main_functions import (
+    send_successful_operation, init_db, create_payment, get_payment,
+    update_payment, get_payment_by_idempotency
+)
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -34,7 +44,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="AcquireMock", version="1.0.0")
+app = FastAPI(title="AcquireMock", version="2.0.0")
 
 login_store: Dict[str, str] = {}
 
@@ -53,6 +63,8 @@ async def on_startup():
     logger.info("Starting up application and initializing database...")
     await init_db(engine)
     logger.info("Database initialized successfully.")
+    asyncio.create_task(start_background_tasks())
+    logger.info("Background tasks started")
 
 
 app.add_middleware(SecurityHeadersMiddleware)
@@ -63,6 +75,18 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+@app.exception_handler(PaymentError)
+async def payment_error_handler(request: Request, exc: PaymentError):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": exc.code,
+            "message": exc.message,
+            "payment_id": exc.payment_id
+        }
+    )
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -91,28 +115,6 @@ async def custom_404_handler(request: Request, exc: HTTPException):
     return templates.TemplateResponse("404.html", {"request": request}, status_code=404)
 
 
-async def send_webhook(payment_id: str, payment: dict):
-    webhook_url = payment.get("webhook_url")
-    if not webhook_url:
-        logger.warning(f"No webhook URL for payment {payment_id}")
-        return
-
-    webhook_data = {
-        "payment_id": payment_id,
-        "reference": payment["reference"],
-        "amount": payment["amount"],
-        "status": "success"
-    }
-
-    logger.info(f"Sending webhook to {webhook_url} for payment {payment_id}")
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.post(webhook_url, json=webhook_data)
-            logger.info(f"Webhook sent. Status: {resp.status_code}")
-    except Exception as e:
-        logger.error(f"Failed to send webhook for {payment_id}: {e}")
-
-
 async def get_user_data(email: str, db: AsyncSession):
     if not email: return [], []
     op_query = select(SuccessFulOperation).where(SuccessFulOperation.email == email).order_by(
@@ -125,50 +127,41 @@ async def get_user_data(email: str, db: AsyncSession):
     return op_result.scalars().all(), card_result.scalars().all()
 
 
-async def finalize_successful_payment(payment_id: str, payment: dict, db: AsyncSession,
-                                      background_tasks: BackgroundTasks):
-    logger.info(f"Finalizing payment {payment_id}")
-    payment["status"] = "paid"
-    payment["paid_at"] = datetime.now().isoformat()
-    payment["payment_id"] = payment_id
+async def finalize_successful_payment(
+        payment: Payment,
+        db: AsyncSession,
+        background_tasks: BackgroundTasks
+):
+    logger.info(f"Finalizing payment {payment.id}")
+    payment.status = "paid"
+    payment.paid_at = datetime.utcnow()
+    await update_payment(db, payment)
 
     try:
         new_op = SuccessFulOperation(
-            payment_id=payment_id,
-            email=payment.get("otp_email"),
-            amount=payment["amount"],
-            reference=payment["reference"],
-            card_mask=payment.get("card_mask"),
-            redirect_url=payment.get("redirect_url", "")
+            payment_id=payment.id,
+            email=payment.otp_email,
+            amount=payment.amount,
+            reference=payment.reference,
+            card_mask=payment.card_mask,
+            redirect_url=payment.redirect_url
         )
         await send_successful_operation(db, new_op)
-        logger.info(f"Operation {payment_id} saved to DB")
+        logger.info(f"Operation {payment.id} saved to DB")
 
-        temp_data = payment.get("temp_card_data", {})
-        if temp_data.get("save"):
-            existing = await db.execute(select(SavedCard).where(
-                SavedCard.email == payment.get("otp_email"),
-                SavedCard.card_mask == payment.get("card_mask")
-            ))
-            if not existing.scalars().first():
-                saved_card = SavedCard(
-                    email=payment.get("otp_email"),
-                    card_hash=hash_sensitive_data(temp_data["number"]),
-                    cvv_hash=hash_sensitive_data(temp_data["cvv"]),
-                    expiry=temp_data["expiry"],
-                    card_mask=payment.get("card_mask")
-                )
-                db.add(saved_card)
-                await db.commit()
-                logger.info(f"Card saved for user {payment.get('otp_email')}")
     except Exception as e:
         logger.error(f"DB Error during finalization: {e}")
 
-    if payment.get("otp_email"):
-        background_tasks.add_task(send_receipt_email, payment.get("otp_email"), payment)
-        logger.info(f"Receipt email task added for {payment.get('otp_email')}")
+    if payment.otp_email:
+        background_tasks.add_task(send_receipt_email, payment.otp_email, {
+            "payment_id": payment.id,
+            "amount": payment.amount,
+            "reference": payment.reference,
+            "card_mask": payment.card_mask
+        })
+        logger.info(f"Receipt email task added for {payment.otp_email}")
 
-    background_tasks.add_task(send_webhook, payment_id, payment)
+    background_tasks.add_task(send_webhook_with_retry, payment, db)
 
 
 @app.post("/api/auth/send-code")
@@ -215,20 +208,24 @@ async def get_user_info_api(email: str, db: AsyncSession = Depends(get_db)):
 
 
 @app.post("/api/create-invoice", response_model=CreateInvoiceResponse)
-async def create_invoice(invoice: CreateInvoiceRequest):
+async def create_invoice(invoice: CreateInvoiceRequest, db: AsyncSession = Depends(get_db)):
     clean_reference = clean_input(invoice.reference)
 
     logger.info(f"Creating invoice for amount {invoice.amount}, ref {clean_reference}")
     payment_id = str(uuid.uuid4())
 
-    db_payments[payment_id] = {
-        "amount": invoice.amount,
-        "reference": clean_reference,
-        "webhook_url": invoice.webhook_url,
-        "redirect_url": invoice.redirect_url,
-        "status": "pending",
-        "created_at": datetime.now().isoformat()
-    }
+    payment = Payment(
+        id=payment_id,
+        amount=invoice.amount,
+        reference=clean_reference,
+        webhook_url=invoice.webhook_url,
+        redirect_url=invoice.redirect_url,
+        status="pending",
+        expires_at=datetime.utcnow() + timedelta(minutes=15)
+    )
+
+    await create_payment(db, payment)
+
     page_url = f"http://localhost:8002/checkout/{payment_id}"
     logger.info(f"Invoice created: {payment_id}")
     return CreateInvoiceResponse(pageUrl=page_url)
@@ -236,10 +233,18 @@ async def create_invoice(invoice: CreateInvoiceRequest):
 
 @app.get("/checkout/{payment_id}")
 async def checkout(payment_id: str, request: Request, db: AsyncSession = Depends(get_db)):
-    payment = payment_check(payment_id, db_payments)
-    if not isinstance(payment, dict):
-        logger.warning(f"Checkout failed: Payment {payment_id} not found")
-        raise HTTPException(404, "Payment not found")
+    payment = await get_payment(db, payment_id)
+
+    if not payment:
+        raise PaymentNotFoundError(payment_id)
+
+    if payment.status in ["paid", "expired", "failed"]:
+        raise PaymentAlreadyProcessedError(payment_id)
+
+    if payment.expires_at < datetime.utcnow():
+        payment.status = "expired"
+        await update_payment(db, payment)
+        raise PaymentExpiredError(payment_id)
 
     user_email = request.cookies.get("user_email")
     recent_operations, saved_cards = [], []
@@ -252,8 +257,8 @@ async def checkout(payment_id: str, request: Request, db: AsyncSession = Depends
     response = templates.TemplateResponse("checkout.html", {
         "request": request,
         "payment_id": payment_id,
-        "amount": payment["amount"],
-        "reference": payment["reference"],
+        "amount": payment.amount,
+        "reference": payment.reference,
         "recent_operations": recent_operations,
         "saved_cards": saved_cards,
         "prefill_email": user_email,
@@ -265,6 +270,7 @@ async def checkout(payment_id: str, request: Request, db: AsyncSession = Depends
 
 
 @app.post("/pay/{payment_id}")
+@limiter.limit("5/minute")
 async def process_payment(
         request: Request,
         payment_id: str,
@@ -276,17 +282,34 @@ async def process_payment(
         email: str = Form(...),
         save_card: bool = Form(False),
         csrf_token: str = Form(...),
+        idempotency_key: Optional[str] = Header(None),
         db: AsyncSession = Depends(get_db)
 ):
     cookie_token = request.cookies.get("csrf_token")
     if not cookie_token or cookie_token != csrf_token:
         logger.warning(f"CSRF Attack attempt on payment {payment_id}")
-        raise HTTPException(status_code=403, detail="CSRF Token Mismatch")
+        raise CSRFTokenMismatchError(payment_id)
+
+    if idempotency_key:
+        existing = await get_payment_by_idempotency(db, idempotency_key)
+        if existing and existing.id != payment_id:
+            logger.info(f"Duplicate request detected with idempotency key {idempotency_key}")
+            if existing.status == "paid":
+                return RedirectResponse(url=f"/success/{existing.id}", status_code=303)
+            elif existing.status == "waiting_for_otp":
+                return RedirectResponse(url=f"/otp/{existing.id}", status_code=303)
 
     logger.info(f"Processing payment {payment_id} for email {email}")
-    payment = payment_check(payment_id, db_payments)
-    if not isinstance(payment, dict):
-        raise HTTPException(404, "Payment error")
+    payment = await get_payment(db, payment_id)
+
+    if not payment:
+        raise PaymentNotFoundError(payment_id)
+
+    if payment.status in ["paid", "expired", "failed"]:
+        raise PaymentAlreadyProcessedError(payment_id)
+
+    if idempotency_key:
+        payment.idempotency_key = idempotency_key
 
     is_valid_card = False
     card_mask_display = ""
@@ -297,58 +320,74 @@ async def process_payment(
         saved_card_obj = card_query.scalars().first()
 
         if not saved_card_obj:
-            raise HTTPException(404, "Saved card not found")
+            raise SavedCardNotFoundError(card_id_int)
 
         if verify_sensitive_data("4444444444444444", saved_card_obj.card_hash):
             is_valid_card = True
             card_mask_display = saved_card_obj.card_mask
-            payment.update({
-                "otp_email": email,
-                "card_mask": saved_card_obj.card_mask,
-                "temp_card_data": {"save": False}
-            })
+            payment.otp_email = email
+            payment.card_mask = saved_card_obj.card_mask
 
     elif card_number:
         card_number_clean = card_number.replace(" ", "")
         if card_number_clean == "4444444444444444":
             is_valid_card = True
             card_mask_display = f"**** {card_number_clean[-4:]}"
-            payment.update({
-                "otp_email": email,
-                "card_mask": card_mask_display,
-                "temp_card_data": {
-                    "number": card_number_clean,
-                    "expiry": expiry,
-                    "cvv": cvv,
-                    "save": save_card
-                }
-            })
+            payment.otp_email = email
+            payment.card_mask = card_mask_display
+
+            if save_card:
+                existing = await db.execute(select(SavedCard).where(
+                    SavedCard.email == email,
+                    SavedCard.card_mask == card_mask_display
+                ))
+                if not existing.scalars().first():
+                    saved_card = SavedCard(
+                        email=email,
+                        card_token=str(uuid.uuid4()),
+                        card_hash=hash_sensitive_data(card_number_clean),
+                        cvv_hash=hash_sensitive_data(cvv),
+                        expiry=expiry,
+                        card_mask=card_mask_display,
+                        psp_provider="mock"
+                    )
+                    db.add(saved_card)
+                    await db.commit()
+                    logger.info(f"Card saved for user {email}")
 
     if is_valid_card:
         cookie_email = request.cookies.get("user_email")
         if cookie_email and cookie_email == email:
             logger.info(f"Cookie matched for {email}, skipping OTP")
-            await finalize_successful_payment(payment_id, payment, db, background_tasks)
+            await finalize_successful_payment(payment, db, background_tasks)
             return RedirectResponse(url=f"/success/{payment_id}", status_code=303)
 
         otp_code = generate_secure_otp()
-        payment["otp_code"] = otp_code
-        payment["status"] = "waiting_for_otp"
+        payment.otp_code = otp_code
+        payment.status = "waiting_for_otp"
+        await update_payment(db, payment)
 
         background_tasks.add_task(send_otp_email, email, otp_code)
         logger.info(f"OTP sent to {email}")
         return RedirectResponse(url=f"/otp/{payment_id}", status_code=303)
     else:
         logger.warning(f"Insufficient funds or invalid card for payment {payment_id}")
-        raise HTTPException(400, "Insufficient funds")
+        payment.status = "failed"
+        payment.error_code = "INSUFFICIENT_FUNDS"
+        payment.error_message = "Invalid card or insufficient funds"
+        await update_payment(db, payment)
+        raise InsufficientFundsError(payment_id)
+
 
 @app.get("/otp/{payment_id}")
-async def otp_page(payment_id: str, request: Request):
-    payment = payment_check(payment_id, db_payments)
-    if not isinstance(payment, dict) or payment.get("status") != "waiting_for_otp":
+async def otp_page(payment_id: str, request: Request, db: AsyncSession = Depends(get_db)):
+    payment = await get_payment(db, payment_id)
+
+    if not payment or payment.status != "waiting_for_otp":
         raise HTTPException(400, "Invalid state")
+
     return templates.TemplateResponse("otp-page.html",
-                                      {"request": request, "payment_id": payment_id, "email": payment.get("otp_email")})
+                                      {"request": request, "payment_id": payment_id, "email": payment.otp_email})
 
 
 @app.post("/otp/verify/{payment_id}")
@@ -360,26 +399,58 @@ async def verify_otp(
         db: AsyncSession = Depends(get_db)
 ):
     logger.info(f"Verifying OTP for {payment_id}")
-    payment = payment_check(payment_id, db_payments)
-    if not isinstance(payment, dict) or not validate_otp(payment, otp_code):
-        logger.warning(f"Invalid OTP for {payment_id}")
-        raise HTTPException(400, "Invalid OTP")
+    payment = await get_payment(db, payment_id)
 
-    payment["otp_code"] = None
-    await finalize_successful_payment(payment_id, payment, db, background_tasks)
+    if not payment:
+        raise PaymentNotFoundError(payment_id)
+
+    if not payment.otp_code or payment.otp_code != otp_code:
+        logger.warning(f"Invalid OTP for {payment_id}")
+        raise InvalidOTPError(payment_id)
+
+    payment.otp_code = None
+    await finalize_successful_payment(payment, db, background_tasks)
 
     return RedirectResponse(url=f"/success/{payment_id}", status_code=303)
 
 
 @app.get("/success/{payment_id}")
-async def payment_success(payment_id: str, request: Request):
-    if payment_id not in db_payments: raise HTTPException(404)
-    return templates.TemplateResponse("success-page.html", {"request": request, **db_payments[payment_id]})
+async def payment_success(payment_id: str, request: Request, db: AsyncSession = Depends(get_db)):
+    payment = await get_payment(db, payment_id)
+
+    if not payment:
+        raise PaymentNotFoundError(payment_id)
+
+    return templates.TemplateResponse("success-page.html", {
+        "request": request,
+        "payment_id": payment.id,
+        "amount": payment.amount,
+        "reference": payment.reference,
+        "card_mask": payment.card_mask,
+        "redirect_url": payment.redirect_url
+    })
 
 
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "timestamp": datetime.utcnow().isoformat(),
+        "version": "2.0.0"
+    }
+
+
+@app.post("/webhooks/verify")
+async def verify_webhook(request: Request):
+    data = await request.json()
+    signature = request.headers.get("X-Signature")
+
+    if not signature:
+        raise HTTPException(400, "Missing signature")
+
+    is_valid = verify_webhook_signature(data, signature)
+
+    return {"valid": is_valid}
 
 
 if __name__ == "__main__":

@@ -1,0 +1,40 @@
+﻿<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Помилка оплати | AcquireMock</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body { background-color: #f8f9fa; display: flex; align-items: center; justify-content: center; height: 100vh; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .error-card { background: white; padding: 40px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; max-width: 400px; width: 100%; }
+        .icon-box { color: #dc3545; font-size: 60px; margin-bottom: 20px; }
+        .btn-retry { background-color: #007bff; color: white; display: block; width: 100%; padding: 12px; border-radius: 8px; text-decoration: none; margin-top: 20px; font-weight: bold; transition: 0.3s; }
+        .btn-retry:hover { background-color: #0056b3; }
+        .btn-back { color: #6c757d; display: block; margin-top: 15px; text-decoration: none; font-size: 14px; }
+        .btn-back:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+
+    <div class="error-card">
+        <div class="icon-box">
+            <i class="fa-regular fa-circle-xmark"></i>
+        </div>
+        <h2 style="margin-bottom: 10px;">Оплата не пройшла</h2>
+        <p style="color: #666; line-height: 1.5;">
+            {{ error_message }}
+        </p>
+
+        <a href="/checkout/{{ payment_id }}" class="btn-retry">
+            <i class="fa fa-refresh"></i> Спробувати ще раз
+        </a>
+
+        <a href="{{ merchant_url }}" class="btn-back">
+            <i class="fa fa-arrow-left"></i> Скасувати та повернутися в магазин
+        </a>
+    </div>
+
+</body>
+</html>

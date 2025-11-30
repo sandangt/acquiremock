@@ -1,6 +1,8 @@
 ﻿from sqlalchemy.ext.asyncio import AsyncSession
-from database.models.main_models import SuccessFulOperation
-from sqlmodel import SQLModel
+from database.models.main_models import SuccessFulOperation, Payment, WebhookLog
+from sqlmodel import SQLModel, select
+from datetime import datetime, timedelta
+from typing import Optional
 
 async def send_successful_operation(session: AsyncSession, operation: SuccessFulOperation):
     session.add(operation)
@@ -11,3 +13,54 @@ async def send_successful_operation(session: AsyncSession, operation: SuccessFul
 async def init_db(engine):
     async with engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
+
+async def create_payment(session: AsyncSession, payment: Payment) -> Payment:
+    session.add(payment)
+    await session.commit()
+    await session.refresh(payment)
+    return payment
+
+async def get_payment(session: AsyncSession, payment_id: str) -> Optional[Payment]:
+    result = await session.execute(
+        select(Payment).where(Payment.id == payment_id)
+    )
+    return result.scalars().first()
+
+async def update_payment(session: AsyncSession, payment: Payment) -> Payment:
+    payment.updated_at = datetime.utcnow()
+    session.add(payment)
+    await session.commit()
+    await session.refresh(payment)
+    return payment
+
+async def get_payment_by_idempotency(session: AsyncSession, idempotency_key: str) -> Optional[Payment]:
+    result = await session.execute(
+        select(Payment).where(Payment.idempotency_key == idempotency_key)
+    )
+    return result.scalars().first()
+
+async def get_expired_payments(session: AsyncSession):
+    now = datetime.utcnow()
+    result = await session.execute(
+        select(Payment).where(
+            Payment.status == "pending",
+            Payment.expires_at < now
+        )
+    )
+    return result.scalars().all()
+
+async def log_webhook(session: AsyncSession, log: WebhookLog):
+    session.add(log)
+    await session.commit()
+    await session.refresh(log)
+    return log
+
+async def get_failed_webhooks(session: AsyncSession, max_attempts: int = 5):
+    result = await session.execute(
+        select(Payment).where(
+            Payment.webhook_attempts < max_attempts,
+            Payment.webhook_status == "failed",
+            Payment.status == "paid"
+        )
+    )
+    return result.scalars().all()
