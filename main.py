@@ -52,7 +52,7 @@ login_store: Dict[str, str] = {}
 
 load_dotenv()
 
-BASE_URL = os.getenv('BASE_URL', 'http://localhost:8002')
+BASE_URL = os.getenv('BASE_URL', 'http://localhost:8000')
 
 class EmailRequest(BaseModel):
     email: str
@@ -231,8 +231,7 @@ async def create_invoice(invoice: CreateInvoiceRequest, db: AsyncSession = Depen
 
     await create_payment(db, payment)
 
-    page_url =f"{BASE_URL}/checkout/{payment_id}"
-    page_url = f"http://localhost:8002/checkout/{payment_id}"
+    page_url = f"{BASE_URL}/checkout/{payment_id}"
     logger.info(f"Invoice created: {payment_id}")
     return CreateInvoiceResponse(pageUrl=page_url)
 
@@ -462,4 +461,4 @@ async def verify_webhook(request: Request):
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="127.0.0.1", port=8002, reload=True)
+    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)

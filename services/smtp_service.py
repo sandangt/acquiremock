@@ -27,8 +27,6 @@ if not EMAIL_ENABLED:
 
 
 async def send_email(to_email: str, subject: str, html_content: str, text_content: str):
-    """Send email via SMTP. If not configured, logs to console instead."""
-
     if not EMAIL_ENABLED:
         logger.info(
             f"📧 Email SKIPPED (SMTP not configured)\n"
@@ -65,8 +63,7 @@ async def send_email(to_email: str, subject: str, html_content: str, text_conten
 
 
 async def send_otp_email(to_email: str, otp_code: str):
-    """Send OTP verification code email."""
-    subject = "AcquireMock: Ваш код підтвердження"
+    subject = "AcquireMock: Your Verification Code"
     template_path = Path("templates/misc/email-letter.html")
 
     logger.info(f"🔐 OTP Code for {to_email}: {otp_code}")
@@ -79,13 +76,13 @@ async def send_otp_email(to_email: str, otp_code: str):
         html_content = f"<h1>Code: {otp_code}</h1>"
 
     html_body = html_content.replace("{{ code }}", str(otp_code))
-    text_body = f"Ваш код підтвердження: {otp_code}"
+    text_body = f"Your verification code: {otp_code}"
 
     await send_email(to_email, subject, html_body, text_body)
 
 
 async def send_receipt_email(to_email: str, payment_data: dict):
-    subject = f"Чек про оплату замовлення #{payment_data.get('reference')}"
+    subject = f"Payment Receipt for Order #{payment_data.get('reference')}"
     template_path = Path("templates/misc/receipt.html")
 
     try:
@@ -107,9 +104,9 @@ async def send_receipt_email(to_email: str, payment_data: dict):
         html_content = html_content.replace(key, value)
 
     text_body = (
-        f"Оплата успішна. "
-        f"Сума: {payment_data.get('amount')} грн. "
-        f"Замовлення: {payment_data.get('reference')}"
+        f"Payment successful. "
+        f"Amount: {payment_data.get('amount')} UAH. "
+        f"Order: {payment_data.get('reference')}"
     )
 
     await send_email(to_email, subject, html_content, text_body)

@@ -1,285 +1,171 @@
 ﻿<!DOCTYPE html>
-<html lang="uk">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AcquireMock - Тестування</title>
+    <title>AcquireMock Demo</title>
+    <link rel="stylesheet" href="/static/css/style.css">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
-
-        .test-container {
-            background: white;
-            border-radius: 24px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            max-width: 500px;
-            width: 100%;
-            padding: 40px;
-        }
-
-        h1 {
-            font-size: 28px;
-            margin-bottom: 10px;
-            color: #212529;
-        }
-
-        p {
-            color: #6c757d;
-            margin-bottom: 30px;
-            line-height: 1.6;
-        }
-
-        .form-group {
-            margin-bottom: 20px;
-        }
-
-        label {
-            display: block;
-            font-size: 13px;
-            font-weight: 600;
-            color: #495057;
-            margin-bottom: 8px;
-        }
-
-        input, select {
-            width: 100%;
-            padding: 12px 16px;
-            border: 2px solid #e9ecef;
-            border-radius: 12px;
-            font-size: 16px;
-            transition: all 0.2s ease;
-        }
-
-        input:focus, select:focus {
-            outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
-        }
-
-        .btn {
-            width: 100%;
-            padding: 16px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 12px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            margin-top: 10px;
-        }
-
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
-        }
-
-        .btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        .response {
-            margin-top: 20px;
-            padding: 16px;
-            border-radius: 12px;
-            background: #f8f9fa;
+        .result-container {
             display: none;
+            margin-top: 32px;
+            padding-top: 32px;
+            border-top: 1px dashed rgba(0,0,0,0.1);
+            animation: slideDown 0.3s ease-out;
         }
-
-        .response.show {
-            display: block;
+        .dark-mode .result-container {
+            border-top-color: rgba(255,255,255,0.1);
         }
-
-        .response-title {
-            font-weight: 600;
-            margin-bottom: 8px;
-            color: #212529;
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
-
-        .response-content {
-            font-family: 'Courier New', monospace;
-            font-size: 14px;
-            color: #495057;
+        .url-box {
+            background: var(--input-bg);
+            padding: 16px;
+            border-radius: 12px;
+            font-family: monospace;
+            font-size: 13px;
+            color: var(--text-secondary);
             word-break: break-all;
+            margin-top: 8px;
+            border: 1px solid transparent;
+            cursor: pointer;
         }
-
-        .link {
-            color: #667eea;
-            text-decoration: none;
-            font-weight: 600;
-        }
-
-        .link:hover {
-            text-decoration: underline;
-        }
-
-        .info-box {
-            background: #fff3cd;
-            border-left: 4px solid #ffc107;
-            padding: 12px 16px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            font-size: 14px;
-            color: #856404;
-        }
-
-        .success-box {
-            background: #d1e7dd;
-            border-left: 4px solid #198754;
-            padding: 12px 16px;
-            border-radius: 8px;
-            margin-top: 15px;
-            font-size: 14px;
-            color: #0f5132;
-        }
-
-        .error-box {
-            background: #f8d7da;
-            border-left: 4px solid #dc3545;
-            padding: 12px 16px;
-            border-radius: 8px;
-            margin-top: 15px;
-            font-size: 14px;
-            color: #842029;
+        .url-box:hover {
+            border-color: var(--accent-primary);
+            color: var(--text-main);
         }
     </style>
 </head>
 <body>
-    <div class="test-container">
-        <h1>🧪 Тест AcquireMock</h1>
-        <p>Швидке тестування Payment Gateway без Django</p>
 
-        <div class="info-box">
-            <strong>💡 Підказка:</strong> Використовуйте картку <strong>4444 4444 4444 4444</strong> для успішної оплати
+    <div class="top-controls">
+        <div class="lang-switcher">
+            <button class="lang-btn" onclick="changeLanguage('uk')">UK</button>
+            <button class="lang-btn" onclick="changeLanguage('en')">EN</button>
+            <button class="lang-btn" onclick="changeLanguage('de')">DE</button>
+            <button class="lang-btn" onclick="changeLanguage('ru')">RU</button>
         </div>
+        <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">
+            <svg class="sun-icon" style="display: none;" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+            <svg class="moon-icon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+        </button>
+    </div>
+
+    <div class="container">
+        <div style="text-align:center; margin-bottom:30px;">
+            <img src="/static/images/AcquireMock.svg" style="height:24px; opacity: 0.8;">
+        </div>
+
+        <h1 class="title" style="text-align:center; margin-bottom:10px;" data-i18n="demo_title">Demo Dashboard</h1>
+        <p style="text-align:center; color:var(--text-secondary); margin-bottom:30px; font-size:14px;" data-i18n="demo_subtitle">
+            Create a test payment to verify the gateway
+        </p>
 
         <form id="testForm">
             <div class="form-group">
-                <label for="amount">Сума (в копійках)</label>
-                <input type="number" id="amount" value="25000" required>
+                <label class="form-label" data-i18n="sum_label">Amount</label>
+                <input type="number" id="amount" class="form-input" value="25000" required>
             </div>
 
             <div class="form-group">
-                <label for="reference">Номер замовлення</label>
-                <input type="text" id="reference" value="TEST-123" required>
+                <label class="form-label" data-i18n="order_num">Reference</label>
+                <input type="text" id="reference" class="form-input" value="TEST-ORDER-001" required>
             </div>
 
-            <div class="form-group">
-                <label for="webhookUrl">Webhook URL</label>
-                <select id="webhookUrl">
-                    <option value="https://webhook.site/unique-id">Webhook.site (для тесту)</option>
-                    <option value="http://localhost:8000/api/v1/orders/webhook/">Django (локально)</option>
-                </select>
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid rgba(0,0,0,0.05);">
+                <div class="form-group">
+                    <label class="form-label" data-i18n="webhook_label">Webhook URL</label>
+                    <input type="url" id="webhookUrl" class="form-input" value="https://webhook.site/unique-id" style="font-size: 13px;">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" data-i18n="redirect_label">Redirect URL</label>
+                    <input type="url" id="redirectUrl" class="form-input" value="http://localhost:8000/success" style="font-size: 13px;">
+                </div>
             </div>
 
-            <div class="form-group">
-                <label for="redirectUrl">Redirect URL</label>
-                <input type="text" id="redirectUrl" value="http://localhost:8000/orders/success" required>
-            </div>
-
-            <button type="submit" class="btn" id="submitBtn">
-                Створити invoice та відкрити оплату
-            </button>
+            <button type="submit" class="submit-btn" id="submitBtn" data-i18n="create_invoice_btn">Create Invoice</button>
         </form>
 
-        <div id="response" class="response">
-            <div class="response-title">✅ Invoice створено!</div>
-            <div class="response-content" id="responseContent"></div>
-        </div>
+        <div id="resultContainer" class="result-container">
+            <div style="display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:16px;">
+                <div style="width:24px; height:24px; background:rgba(72, 187, 120, 0.2); border-radius:50%; display:flex; align-items:center; justify-content:center; color:#48bb78;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                </div>
+                <span style="font-weight:700; color:var(--text-main);" data-i18n="result_title">Invoice Created!</span>
+            </div>
 
-        <div class="success-box" style="display: none;" id="successBox">
-            <strong>🎉 Готово!</strong> Зараз відкриється сторінка оплати...
-        </div>
+            <a href="#" id="paymentLinkBtn" target="_blank" class="submit-btn" style="margin-top:0; background:var(--text-main); color:var(--card-bg);" data-i18n="open_page_btn">
+                Go to Payment Page
+            </a>
 
-        <div class="error-box" style="display: none;" id="errorBox">
-            <strong>❌ Помилка:</strong> <span id="errorMessage"></span>
+            <p style="text-align:center; font-size:11px; color:var(--text-secondary); margin-top:16px;" data-i18n="or_copy_link">
+                or copy link:
+            </p>
+            <div class="url-box" id="urlBox" onclick="copyUrl()"></div>
         </div>
     </div>
 
+    <script src="/static/js/i18n.js"></script>
     <script>
+        function copyUrl() {
+            const urlText = document.getElementById('urlBox').innerText;
+            navigator.clipboard.writeText(urlText).then(() => {
+                const originalBorder = document.getElementById('urlBox').style.borderColor;
+                document.getElementById('urlBox').style.borderColor = '#48bb78';
+                setTimeout(() => {
+                    document.getElementById('urlBox').style.borderColor = originalBorder;
+                }, 500);
+            });
+        }
+
         const form = document.getElementById('testForm');
         const submitBtn = document.getElementById('submitBtn');
-        const response = document.getElementById('response');
-        const responseContent = document.getElementById('responseContent');
-        const successBox = document.getElementById('successBox');
-        const errorBox = document.getElementById('errorBox');
-        const errorMessage = document.getElementById('errorMessage');
+        const resultContainer = document.getElementById('resultContainer');
+        const paymentLinkBtn = document.getElementById('paymentLinkBtn');
+        const urlBox = document.getElementById('urlBox');
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
 
-            // Отримуємо дані з форми
+            submitBtn.style.opacity = '0.7';
+            submitBtn.disabled = true;
+
             const amount = parseInt(document.getElementById('amount').value);
             const reference = document.getElementById('reference').value;
-            const webhookUrl = document.getElementById('webhookUrl').value;
-            const redirectUrl = document.getElementById('redirectUrl').value;
+            let redirectUrl = document.getElementById('redirectUrl').value;
 
-            // Скидаємо попередні повідомлення
-            response.classList.remove('show');
-            successBox.style.display = 'none';
-            errorBox.style.display = 'none';
-
-            // Блокуємо кнопку
-            submitBtn.disabled = true;
-            submitBtn.textContent = 'Створення invoice...';
+            if (redirectUrl.includes('localhost:8000')) {
+                redirectUrl = window.location.origin + '/success/PREVIEW';
+            }
 
             try {
-                // Викликаємо API
-                const res = await fetch('http://localhost:8002/api/create-invoice', {
+                const res = await fetch('/api/create-invoice', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         amount: amount,
                         reference: reference,
-                        webhook_url: webhookUrl,
-                        redirect_url: redirectUrl
+                        webhook_url: document.getElementById('webhookUrl').value,
+                        redirect_url: document.getElementById('redirectUrl').value
                     })
                 });
 
-                if (!res.ok) {
-                    throw new Error(`HTTP error! status: ${res.status}`);
-                }
+                if (!res.ok) throw new Error('API Error');
 
                 const data = await res.json();
 
-                // Показуємо результат
-                responseContent.innerHTML = `
-                    <strong>Payment URL:</strong><br>
-                    <a href="${data.page_url}" target="_blank" class="link">${data.page_url}</a>
-                `;
-                response.classList.add('show');
-                successBox.style.display = 'block';
-
-                // Відкриваємо сторінку оплати через 1.5 секунди
-                setTimeout(() => {
-                    window.open(data.page_url, '_blank');
-                }, 1500);
+                resultContainer.style.display = 'block';
+                paymentLinkBtn.href = data.pageUrl;
+                urlBox.innerText = data.pageUrl;
 
             } catch (error) {
-                console.error('Error:', error);
-                errorMessage.textContent = error.message + '. Перевірте чи запущений FastAPI на порту 1';
-                errorBox.style.display = 'block';
+                alert('Error creating invoice');
             } finally {
+                submitBtn.style.opacity = '1';
                 submitBtn.disabled = false;
-                submitBtn.textContent = 'Створити invoice та відкрити оплату';
             }
         });
     </script>

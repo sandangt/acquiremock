@@ -1,14 +1,13 @@
 ﻿<!DOCTYPE html>
-<html lang="uk">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AcquireMock — Payments for Developers</title>
     <link rel="stylesheet" href="/static/css/style.css">
     <style>
-        /* Landing Specific Styles */
         body {
-            justify-content: flex-start; /* Разрешаем скролл */
+            justify-content: flex-start;
             padding: 0;
             overflow-x: hidden;
         }
@@ -114,7 +113,6 @@
             line-height: 1.6;
         }
 
-        /* Nav */
         .nav {
             width: 100%;
             padding: 30px 40px;
@@ -125,6 +123,12 @@
             top: 0;
             left: 0;
         }
+
+        .top-controls {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
     </style>
 </head>
 <body>
@@ -133,7 +137,14 @@
         <div style="display:flex; align-items:center; gap:10px; font-weight:700; font-size:18px;">
             <img src="/static/images/AcquireMock.svg" alt="Logo" style="height:24px;">
         </div>
-        <div class="top-controls" style="position:static;">
+
+        <div class="top-controls">
+            <div class="lang-switcher">
+                <button class="lang-btn" onclick="changeLanguage('uk')">UK</button>
+                <button class="lang-btn" onclick="changeLanguage('en')">EN</button>
+                <button class="lang-btn" onclick="changeLanguage('de')">DE</button>
+                <button class="lang-btn" onclick="changeLanguage('ru')">RU</button>
+            </div>
             <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">
                 <svg class="sun-icon" style="display: none;" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
                 <svg class="moon-icon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
@@ -142,16 +153,16 @@
     </nav>
 
     <div class="hero-section">
-        <div style="font-family: monospace; color: var(--accent-secondary); margin-bottom: 16px; letter-spacing: 1px;">V1.0.0 STABLE</div>
-        <h1 class="hero-title">Платежі майбутнього<br>вже сьогодні</h1>
-        <p class="hero-subtitle">
-            Швидка інтеграція, безпечні транзакції та зручний інтерфейс для ваших клієнтів.
-            AcquireMock — це ідеальне рішення для навчальних проектів та стартапів.
+        <div style="font-family: monospace; color: var(--accent-secondary); margin-bottom: 16px; letter-spacing: 1px;" data-i18n="hero_version">V1.0.0 STABLE</div>
+        <h1 class="hero-title" data-i18n="hero_title">Future Payments<br>Available Today</h1>
+        <p class="hero-subtitle" data-i18n="hero_subtitle">
+            Fast integration, secure transactions, and a user-friendly interface for your customers.
+            AcquireMock is the perfect solution for educational projects and startups.
         </p>
 
         <div class="cta-group">
-            <a href="/test" class="submit-btn" style="width:auto; padding: 0 40px; margin:0;">Демо Тест</a>
-            <a href="/docs" class="submit-btn btn-outline" style="width:auto; padding: 0 40px; margin:0;">API Docs</a>
+            <a href="/test" class="submit-btn" style="width:auto; padding: 0 40px; margin:0;" data-i18n="btn_demo">Demo Test</a>
+            <a href="/docs" class="submit-btn btn-outline" style="width:auto; padding: 0 40px; margin:0;" data-i18n="btn_docs">API Docs</a>
         </div>
     </div>
 
@@ -160,40 +171,29 @@
             <div class="feature-icon">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
             </div>
-            <h3 class="feature-title">Smart Checkout</h3>
-            <p class="feature-desc">Адаптивний дизайн, підтримка темної теми та збереження карток для швидких оплат.</p>
+            <h3 class="feature-title" data-i18n="feat_checkout_title">Smart Checkout</h3>
+            <p class="feature-desc" data-i18n="feat_checkout_desc">Adaptive design, dark mode support, and card saving for quick payments.</p>
         </div>
         <div class="feature-card">
             <div class="feature-icon">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
             </div>
-            <h3 class="feature-title">Secure & Safe</h3>
-            <p class="feature-desc">Вбудована перевірка OTP, захист від CSRF атак та безпечна обробка даних.</p>
+            <h3 class="feature-title" data-i18n="feat_secure_title">Secure & Safe</h3>
+            <p class="feature-desc" data-i18n="feat_secure_desc">Built-in OTP verification, CSRF protection, and secure data processing.</p>
         </div>
         <div class="feature-card">
             <div class="feature-icon">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
             </div>
-            <h3 class="feature-title">Real-time Analytics</h3>
-            <p class="feature-desc">Миттєві сповіщення про транзакції на Email та Webhook інтеграція.</p>
+            <h3 class="feature-title" data-i18n="feat_analytics_title">Real-time Analytics</h3>
+            <p class="feature-desc" data-i18n="feat_analytics_desc">Instant transaction notifications via Email and Webhook integration.</p>
         </div>
     </div>
 
     <footer style="text-align:center; padding: 40px; color: var(--text-secondary); font-size: 14px; border-top: 1px solid rgba(0,0,0,0.05);">
-        <p>© 2025 AcquireMock. All rights reserved.</p>
+        <p data-i18n="footer_rights">© 2025 AcquireMock. All rights reserved.</p>
     </footer>
 
     <script src="/static/js/i18n.js"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const savedTheme = localStorage.getItem('theme');
-            if (savedTheme === 'dark') {
-                document.body.classList.add('dark-mode');
-                updateThemeIcon(true);
-            } else {
-                updateThemeIcon(false);
-            }
-        });
-    </script>
 </body>
 </html>
