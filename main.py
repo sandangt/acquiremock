@@ -3,6 +3,8 @@ import httpx
 import logging
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict
+import os
+from dotenv import load_dotenv
 
 from fastapi import FastAPI, HTTPException, Request, Form, BackgroundTasks, Depends, Query, Cookie, Body, Header
 from fastapi.responses import RedirectResponse, JSONResponse, HTMLResponse
@@ -48,6 +50,9 @@ app = FastAPI(title="AcquireMock", version="2.0.0")
 
 login_store: Dict[str, str] = {}
 
+load_dotenv()
+
+BASE_URL = os.getenv('BASE_URL', 'http://localhost:8002')
 
 class EmailRequest(BaseModel):
     email: str
@@ -226,6 +231,7 @@ async def create_invoice(invoice: CreateInvoiceRequest, db: AsyncSession = Depen
 
     await create_payment(db, payment)
 
+    page_url =f"{BASE_URL}/checkout/{payment_id}"
     page_url = f"http://localhost:8002/checkout/{payment_id}"
     logger.info(f"Invoice created: {payment_id}")
     return CreateInvoiceResponse(pageUrl=page_url)

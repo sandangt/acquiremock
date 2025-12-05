@@ -1,60 +1,96 @@
-# AcquireMock Payment Gateway v2.0
+# 💳 AcquireMock
 
-Mock payment gateway для тестування інтеграції з платіжними системами.
+> Mock payment gateway for testing payment integrations without real money
 
-## Нові можливості v2.0
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.109+-green.svg)](https://fastapi.tiangolo.com)
 
-- ✅ Зберігання платежів в БД (PostgreSQL/SQLite)
-- ✅ Webhook з підписом (HMAC-SHA256)
-- ✅ Retry механізм для webhooks
-- ✅ Idempotency keys
-- ✅ Автоматичне закінчення платежів (TTL 15 хв)
-- ✅ Background tasks для обробки
-- ✅ Structured error handling
-- ✅ Webhook verification endpoint
+A full-featured mock payment gateway that simulates real payment flows including OTP verification, webhooks with HMAC signatures, and card storage - perfect for testing e-commerce integrations.
 
-## Встановлення
+![Demo](demo.gif)
+
+## ✨ Features
+
+- 🎨 **Beautiful UI** - Modern checkout with dark mode & 4 languages (UK/EN/DE/RU)
+- 🔐 **OTP Verification** - Email-based payment confirmation
+- 🔔 **Webhooks** - HMAC-SHA256 signed callbacks with auto-retry
+- 💾 **Card Storage** - Save cards for returning customers
+- ⏰ **Auto-Expiry** - Payments expire after 15 minutes
+- 🔄 **Idempotency** - Prevent duplicate payments
+- 📊 **Transaction History** - Track all operations per user
+- 🐳 **Docker Ready** - One command deployment
+
+## 🎯 Use Cases
+
+- Testing payment flows in development
+- Learning payment gateway integration
+- Building MVPs without payment provider setup
+- Educational projects and demos
+
+## 🚀 Quick Start
+
+### Using Docker (Recommended)
 
 ```bash
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-venv\Scripts\activate  # Windows
-
-pip install -r requirements.txt
-
-cp .env.example .env
+docker-compose up
 ```
 
-## Налаштування .env
+Visit `http://localhost:8002`
+
+### Manual Installation
+
+```bash
+# Clone repository
+git clone https://github.com/yourusername/acquiremock.git
+cd acquiremock
+
+# Install dependencies
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+
+# Setup environment
+cp .env.example .env
+
+# Run
+uvicorn main:app --port 8002 --reload
+```
+
+## ⚙️ Configuration
+
+### Required
 
 ```env
 DATABASE_URL=sqlite+aiosqlite:///./payment.db
+WEBHOOK_SECRET=your-secret-key-min-32-chars
+BASE_URL=http://localhost:8002
+```
+
+### Optional (Email)
+
+⚠️ **Email is optional.** If not configured, OTP codes will be logged to console.
+
+```env
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USER=your-email@gmail.com
 SMTP_PASS=your-app-password
-WEBHOOK_SECRET=your-secret-key-min-32-chars
 ```
 
-## Запуск
+## 📡 API Usage
+
+### Create Payment
 
 ```bash
-uvicorn main:app --port 8002 --reload
-```
-
-## API Endpoints
-
-### POST /api/create-invoice
-Створення нового платежу
-
-**Request:**
-```json
-{
-  "amount": 25000,
-  "reference": "ORDER-123",
-  "webhook_url": "https://your-site.com/webhook",
-  "redirect_url": "https://your-site.com/success"
-}
+curl -X POST http://localhost:8002/api/create-invoice \
+  -H "Content-Type: application/json" \
+  -d '{
+    "amount": 25000,
+    "reference": "ORDER-123",
+    "webhookUrl": "https://your-site.com/webhook",
+    "redirectUrl": "https://your-site.com/success"
+  }'
 ```
 
 **Response:**
@@ -64,34 +100,14 @@ uvicorn main:app --port 8002 --reload
 }
 ```
 
-### POST /webhooks/verify
-Перевірка підпису webhook
-
-**Headers:**
-```
-X-Signature: hmac-sha256-signature
-```
-
-**Request:**
-```json
-{
-  "payment_id": "uuid",
-  "reference": "ORDER-123",
-  "amount": 25000,
-  "status": "paid"
-}
-```
-
-## Webhook Integration
-
-### Отримання webhook в Django
+### Handle Webhook
 
 ```python
 import hmac
 import hashlib
 import json
 
-def verify_webhook_signature(payload: dict, signature: str, secret: str) -> bool:
+def verify_webhook(payload: dict, signature: str, secret: str) -> bool:
     message = json.dumps(payload, sort_keys=True)
     expected = hmac.new(
         secret.encode(),
@@ -100,79 +116,153 @@ def verify_webhook_signature(payload: dict, signature: str, secret: str) -> bool
     ).hexdigest()
     return hmac.compare_digest(expected, signature)
 
-@csrf_exempt
-def payment_webhook(request):
-    if request.method == 'POST':
-        signature = request.headers.get('X-Signature')
-        payload = json.loads(request.body)
-        
-        if not verify_webhook_signature(payload, signature, settings.WEBHOOK_SECRET):
-            return JsonResponse({'error': 'Invalid signature'}, status=403)
-        
-        payment_id = payload['payment_id']
-        status = payload['status']
-        
-        if status == 'paid':
-            order = Order.objects.get(payment_id=payment_id)
-            order.status = 'paid'
-            order.save()
-        
-        return JsonResponse({'status': 'ok'})
+@app.post("/webhook")
+async def payment_webhook(request: Request):
+    signature = request.headers.get("X-Signature")
+    payload = await request.json()
+    
+    if not verify_webhook(payload, signature, WEBHOOK_SECRET):
+        return {"error": "Invalid signature"}, 403
+    
+    # Process payment
+    if payload["status"] == "paid":
+        order = await Order.get(payment_id=payload["payment_id"])
+        order.status = "paid"
+        await order.save()
+    
+    return {"status": "ok"}
 ```
 
-## Тестові дані
+## 🧪 Testing
 
-- **Успішна картка:** 4444 4444 4444 4444
-- **CVV:** будь-який
-- **Термін:** будь-який (MM/YY)
+### Test Payment Card
 
-## Структура БД
+```
+Card:   4444 4444 4444 4444
+CVV:    any 3 digits
+Expiry: any future date (MM/YY)
+```
 
-### Таблиця `payments`
-- id (UUID, PK)
-- amount (float)
-- reference (string, indexed)
-- status (enum: pending/waiting_for_otp/paid/failed/expired)
-- webhook_url (string)
-- webhook_attempts (int)
-- webhook_status (string)
-- idempotency_key (string, indexed)
-- expires_at (datetime)
-- created_at, updated_at, paid_at
+### Run Tests
 
-### Таблиця `webhook_logs`
-- payment_id (FK)
-- webhook_url
-- payload (JSON)
-- response_status
-- signature
-- attempt_number
-- success (bool)
+```bash
+pytest tests/ -v
+```
 
-## Background Tasks
+### Interactive Test Page
 
-1. **expire_pending_payments_task** - закінчує платежі старше 15 хвилин (кожну хвилину)
-2. **retry_failed_webhooks_task** - повторює failed webhooks до 5 спроб (кожні 5 хвилин)
+Visit `http://localhost:8002/test` for a built-in test interface.
 
-## Production Checklist
+## 🏗️ Architecture
 
-- [ ] Замінити SQLite на PostgreSQL
-- [ ] Налаштувати WEBHOOK_SECRET (32+ символів)
-- [ ] Додати rate limiting per user
-- [ ] Налаштувати Sentry/logging
-- [ ] Додати моніторинг (Prometheus/Grafana)
-- [ ] SSL certificates
-- [ ] Firewall rules
-- [ ] Backup strategy для БД
+```
+├── main.py                 # FastAPI application
+├── database/
+│   ├── models/            # SQLModel schemas
+│   └── functional/        # Database operations
+├── services/
+│   ├── smtp_service.py    # Email sending
+│   ├── webhook_service.py # Webhook delivery
+│   └── background_tasks.py # Async jobs
+├── security/
+│   ├── crypto.py          # Hashing & tokens
+│   └── middleware.py      # Security headers
+├── templates/             # Jinja2 HTML templates
+└── static/                # CSS, JS, images
+```
 
-## Міграція на реальний PSP
+## 🔒 Security Features
 
-Для переходу на Fondy/Stripe:
-1. Замінити валідацію картки на API виклик PSP
-2. Використовувати токенізацію замість зберігання карток
-3. Реалізувати 3D Secure flow
-4. Додати refund endpoint
+- CSRF token validation
+- HMAC-SHA256 webhook signatures
+- Bcrypt password hashing for stored cards
+- Security headers (XSS, Frame Options, Content-Type)
+- Rate limiting (5 req/min per IP)
+- Input sanitization
 
-## License
+## 📊 Database Schema
 
-MIT
+### Payments
+- Stores all payment attempts
+- Tracks status transitions
+- Records webhook delivery attempts
+
+### Saved Cards
+- Hashed card data (never plaintext)
+- Linked to user email
+- Used for one-click payments
+
+### Webhook Logs
+- Full audit trail
+- Response status & body
+- Retry attempts
+
+## 🐳 Docker Deployment
+
+```yaml
+# docker-compose.yml
+version: '3.8'
+services:
+  app:
+    build: .
+    ports:
+      - "8002:8002"
+    environment:
+      - DATABASE_URL=sqlite+aiosqlite:///./payment.db
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET}
+    volumes:
+      - ./data:/app/data
+```
+
+## 🔄 Migration to Real PSP
+
+When ready for production with Stripe/Fondy:
+
+1. Replace card validation with PSP API calls
+2. Implement tokenization instead of card storage
+3. Add 3D Secure flow
+4. Implement refund endpoint
+5. Add PCI DSS compliance measures
+
+## 🤝 Contributing
+
+Contributions welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) first.
+
+1. Fork the repo
+2. Create feature branch (`git checkout -b feature/amazing`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing`)
+5. Open Pull Request
+
+## 📝 License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+## ⚠️ Disclaimer
+
+**This is a MOCK payment gateway for testing purposes only.**
+
+- Do NOT use in production with real payment data
+- Do NOT store real credit card information
+- Do NOT use for actual financial transactions
+
+For production use, integrate with certified payment providers like Stripe, PayPal, or your regional PSP.
+
+## 🙏 Acknowledgments
+
+Built with:
+- [FastAPI](https://fastapi.tiangolo.com/) - Modern Python web framework
+- [SQLModel](https://sqlmodel.tiangolo.com/) - SQL databases in Python
+- [Jinja2](https://jinja.palletsprojects.com/) - Template engine
+
+---
+
+<div align="center">
+
+**[Documentation](https://github.com/yourusername/acquiremock/wiki)** • 
+**[Report Bug](https://github.com/yourusername/acquiremock/issues)** • 
+**[Request Feature](https://github.com/yourusername/acquiremock/issues)**
+
+Made with ❤️ for developers who need to test payments
+
+</div>
