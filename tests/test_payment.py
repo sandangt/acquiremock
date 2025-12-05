@@ -4,7 +4,7 @@ import webbrowser
 from datetime import datetime
 import random
 
-API_URL = "http://localhost:8002"
+API_URL = "http://localhost:8000"
 WEBHOOK_URL = "https://webhook.site/unique-id"
 REDIRECT_URL = "http://localhost:8000/orders/success"
 
@@ -68,7 +68,7 @@ def test_create_invoice():
     except requests.exceptions.ConnectionError:
         print("❌ Помилка: Не можу підключитися до сервера")
         print("   Перевірте чи запущений FastAPI на http://localhost:8008")
-        print("   Запустіть: uvicorn main:app --port 8002 --reload")
+        print("   Запустіть: uvicorn main:app --port 8000 --reload")
 
     except requests.exceptions.HTTPError as e:
         print(f"❌ HTTP Помилка: {e}")
@@ -111,7 +111,7 @@ if __name__ == "__main__":
         test_create_invoice()
     else:
         print("\n💡 Запустіть FastAPI сервер:")
-        print("   uvicorn main:app --port 8002 --reload")
+        print("   uvicorn main:app --port 8000 --reload")
 
     print("\n" + "=" * 50)
     print("Тестування завершено\n")

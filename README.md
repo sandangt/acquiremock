@@ -36,7 +36,7 @@ A full-featured mock payment gateway that simulates real payment flows including
 docker-compose up
 ```
 
-Visit `http://localhost:8002`
+Visit `http://localhost:8000`
 
 ### Manual Installation
 
@@ -54,7 +54,7 @@ pip install -r requirements.txt
 cp .env.example .env
 
 # Run
-uvicorn main:app --port 8002 --reload
+uvicorn main:app --port 8000 --reload
 ```
 
 ## ⚙️ Configuration
@@ -64,7 +64,7 @@ uvicorn main:app --port 8002 --reload
 ```env
 DATABASE_URL=sqlite+aiosqlite:///./payment.db
 WEBHOOK_SECRET=your-secret-key-min-32-chars
-BASE_URL=http://localhost:8002
+BASE_URL=http://localhost:8000
 ```
 
 ### Optional (Email)
@@ -83,7 +83,7 @@ SMTP_PASS=your-app-password
 ### Create Payment
 
 ```bash
-curl -X POST http://localhost:8002/api/create-invoice \
+curl -X POST http://localhost:8000/api/create-invoice \
   -H "Content-Type: application/json" \
   -d '{
     "amount": 25000,
@@ -96,7 +96,7 @@ curl -X POST http://localhost:8002/api/create-invoice \
 **Response:**
 ```json
 {
-  "pageUrl": "http://localhost:8002/checkout/{payment_id}"
+  "pageUrl": "http://localhost:8000/checkout/{payment_id}"
 }
 ```
 
@@ -151,7 +151,7 @@ pytest tests/ -v
 
 ### Interactive Test Page
 
-Visit `http://localhost:8002/test` for a built-in test interface.
+Visit `http://localhost:8000/test` for a built-in test interface.
 
 ## 🏗️ Architecture
 
@@ -206,7 +206,7 @@ services:
   app:
     build: .
     ports:
-      - "8002:8002"
+      - "8000:8000"
     environment:
       - DATABASE_URL=sqlite+aiosqlite:///./payment.db
       - WEBHOOK_SECRET=${WEBHOOK_SECRET}
