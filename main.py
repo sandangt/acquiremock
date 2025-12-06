@@ -53,6 +53,8 @@ login_store: Dict[str, str] = {}
 load_dotenv()
 
 BASE_URL = os.getenv('BASE_URL', 'http://localhost:8000')
+CURRENCY_CODE = os.getenv('CURRENCY_CODE', 'USD')
+CURRENCY_SYMBOL = os.getenv('CURRENCY_SYMBOL', '$')
 
 class EmailRequest(BaseModel):
     email: str
@@ -112,7 +114,7 @@ async def merchant_login(request: Request):
 
 @app.get("/merchant/dashboard", response_class=HTMLResponse)
 async def merchant_dashboard(request: Request):
-    return templates.TemplateResponse("dashboard.html", {"request": request})
+    return templates.TemplateResponse("dashboard.html", {"request": request, "currency_symbol": CURRENCY_SYMBOL})
 
 
 @app.exception_handler(404)
@@ -162,7 +164,8 @@ async def finalize_successful_payment(
             "payment_id": payment.id,
             "amount": payment.amount,
             "reference": payment.reference,
-            "card_mask": payment.card_mask
+            "card_mask": payment.card_mask,
+            "currency_symbol": CURRENCY_SYMBOL
         })
         logger.info(f"Receipt email task added for {payment.otp_email}")
 
@@ -267,7 +270,8 @@ async def checkout(payment_id: str, request: Request, db: AsyncSession = Depends
         "recent_operations": recent_operations,
         "saved_cards": saved_cards,
         "prefill_email": user_email,
-        "csrf_token": csrf_token
+        "csrf_token": csrf_token,
+        "currency_symbol": CURRENCY_SYMBOL
     })
 
     response.set_cookie(
@@ -457,7 +461,8 @@ async def payment_success(payment_id: str, request: Request, db: AsyncSession = 
         "amount": payment.amount,
         "reference": payment.reference,
         "card_mask": payment.card_mask,
-        "redirect_url": payment.redirect_url
+        "redirect_url": payment.redirect_url,
+        "currency_symbol": CURRENCY_SYMBOL
     })
 
 
@@ -466,7 +471,8 @@ async def health():
     return {
         "status": "ok",
         "timestamp": datetime.utcnow().isoformat(),
-        "version": "2.0.0"
+        "version": "2.0.0",
+        "currency": CURRENCY_CODE
     }
 
 

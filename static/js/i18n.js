@@ -224,8 +224,9 @@ function changeLanguage(lang) {
 
             if (key === 'pay_btn') {
                  const amount = elem.getAttribute('data-amount');
-                 if(amount) {
-                    elem.textContent = translations[lang][key] + ` ${amount} ₴`;
+                 const currency = elem.getAttribute('data-currency');
+                 if(amount && currency) {
+                    elem.textContent = translations[lang][key] + ` ${amount} ${currency}`;
                  } else {
                     elem.textContent = translations[lang][key];
                  }

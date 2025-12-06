@@ -15,6 +15,7 @@ SMTP_HOST = os.getenv('SMTP_HOST')
 SMTP_PORT = os.getenv('SMTP_PORT')
 SMTP_USER = os.getenv('SMTP_USER')
 SMTP_PASS = os.getenv('SMTP_PASS')
+CURRENCY_SYMBOL = os.getenv('CURRENCY_SYMBOL', '$')
 
 EMAIL_ENABLED = all([SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS])
 
@@ -87,6 +88,7 @@ async def send_otp_email(to_email: str, otp_code: str):
 async def send_receipt_email(to_email: str, payment_data: dict):
     subject = f"Payment Receipt for Order #{payment_data.get('reference')}"
     template_path = Path("templates/misc/receipt.html")
+    currency_symbol = payment_data.get('currency_symbol', CURRENCY_SYMBOL)
 
     try:
         with open(template_path, "r", encoding="utf-8") as f:
@@ -100,7 +102,8 @@ async def send_receipt_email(to_email: str, payment_data: dict):
         "{{ reference }}": str(payment_data.get('reference')),
         "{{ date }}": datetime.now().strftime("%d.%m.%Y %H:%M"),
         "{{ card_mask }}": payment_data.get('card_mask', '****'),
-        "{{ payment_id }}": payment_data.get('payment_id', '')
+        "{{ payment_id }}": payment_data.get('payment_id', ''),
+        "{{ currency_symbol }}": currency_symbol
     }
 
     for key, value in replacements.items():
@@ -108,7 +111,7 @@ async def send_receipt_email(to_email: str, payment_data: dict):
 
     text_body = (
         f"Payment successful. "
-        f"Amount: {payment_data.get('amount')} UAH. "
+        f"Amount: {payment_data.get('amount')} {currency_symbol}. "
         f"Order: {payment_data.get('reference')}"
     )
 

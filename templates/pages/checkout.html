@@ -47,7 +47,7 @@
     <div class="container" id="mainContainer">
         <div class="amount-section">
             <div style="font-size:11px; letter-spacing:2px; text-transform:uppercase; color:var(--accent-primary); font-weight:700;" data-i18n="to_pay">До сплати</div>
-            <div class="amount">{{ amount }} ₴</div>
+            <div class="amount">{{ amount }} {{ currency_symbol }}</div>
             <div class="ref-text">#{{ reference }}</div>
             <div id="currentUserDisplay" style="margin-top:16px; font-size:12px; color:var(--text-secondary); cursor:pointer; text-decoration:underline;" onclick="resetUser()" data-i18n="change_acc">
                 Змінити акаунт
@@ -85,7 +85,7 @@
                 <span data-i18n="save_card">Зберегти карту</span>
             </label>
 
-            <button type="submit" class="submit-btn" id="payBtn" data-i18n="pay_btn" data-amount="{{ amount }}">Оплатити {{ amount }} ₴</button>
+            <button type="submit" class="submit-btn" id="payBtn" data-i18n="pay_btn" data-amount="{{ amount }}" data-currency="{{ currency_symbol }}">Оплатити {{ amount }} {{ currency_symbol }}</button>
         </form>
     </div>
 
@@ -101,6 +101,7 @@
     <script src="/static/js/i18n.js"></script>
     <script>
         const prefillEmail = "{{ prefill_email if prefill_email else '' }}";
+        const currencySymbol = "{{ currency_symbol }}";
         let currentAuthEmail = "";
 
         function setCookie(name, value, days) {
@@ -223,7 +224,7 @@
                                     <div style="font-weight:600; color:var(--text-main)">${op.reference}</div>
                                     <div style="font-size:11px; color:var(--text-secondary)">${op.date} • ${op.card_mask}</div>
                                 </div>
-                                <div style="color:var(--accent-primary); font-weight:600;">+${op.amount} ₴</div>
+                                <div style="color:var(--accent-primary); font-weight:600;">+${op.amount} ${currencySymbol}</div>
                             </div>
                         `;
                     });
