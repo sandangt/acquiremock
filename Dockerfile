@@ -20,4 +20,4 @@ RUN python manage.py collectstatic --noinput || true
 
 EXPOSE ${PORT}
 
-CMD gunicorn main:app --workers 4 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:${PORT}
+CMD uvicorn app.main:app --workers 4 --host 0.0.0.0 --port ${PORT}
